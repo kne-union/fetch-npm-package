@@ -1,6 +1,6 @@
 {
   "name": "@kne/fetch-npm-package",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "下载并解压npm包文件",
   "main": "index.js",
   "files": [
@@ -14,8 +14,13 @@
     "request-promise": "^4.2.6",
     "tmp": "^0.2.3"
   },
-  "devDependencies": {},
-  "scripts": {},
+  "devDependencies": {
+    "@kne/md-doc": "^0.1.8"
+  },
+  "scripts": {
+    "build:md": "create-md",
+    "start:md": "create-md --watch"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kne-union/download-npm-package.git"
