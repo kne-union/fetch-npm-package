@@ -5,7 +5,8 @@ const lodash = require('lodash');
 const request = require('request-promise');
 const fs = require('fs-extra');
 const decompress = require("decompress");
-const download = async (packageName, targetVersion) => {
+const download = async (packageName, targetVersion, options) => {
+    options = Object.assign({}, options);
     const {name, version: latestVersion, versions} = await loadNpmInfo(packageName);
     const version = targetVersion || latestVersion;
     const {tarball: url} = versions[version];
@@ -32,10 +33,18 @@ const download = async (packageName, targetVersion) => {
     });
     console.log(`[${name}/${version}]开始解压压缩包`);
     await decompress(fileDir, tmpdir);
-    const output = path.resolve(process.cwd(), process.env.OUTPUT_PATH || 'build');
-    await fs.emptyDir(output);
-    await fs.copy(path.resolve(tmpdir, 'package'), output);
-    console.log(`[${name}/${version}]下载完成`);
+    console.log(`[${name}/${version}]解压压缩包完成`);
+    if (typeof options.callback === 'function') {
+        console.log(`[${name}/${version}]执行callback操作`);
+        await Promise.resolve(options.callback(path.resolve(tmpdir, 'package')));
+    }
+    if (!(typeof options.callback === 'function' && !(options.outputPath || process.env.OUTPUT_PATH))) {
+        const output = path.resolve(process.cwd(), options.outputPath || process.env.OUTPUT_PATH || 'build');
+        console.log(`[${name}/${version}]执行文件复制到输出目录${output}`);
+        await fs.emptyDir(output);
+        await fs.copy(path.resolve(tmpdir, 'package'), output);
+    }
+    console.log(`[${name}/${version}]任务执行完成！`);
     try {
         cleanup();
         console.log(`[${name}/${version}]完成临时目录清理`);
