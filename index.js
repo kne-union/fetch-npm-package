@@ -2,7 +2,7 @@ const loadNpmInfo = require('@kne/load-npm-info');
 const tmp = require("tmp");
 const path = require("path");
 const lodash = require('lodash');
-const request = require('request-promise');
+const fetch = require('node-fetch');
 const fs = require('fs-extra');
 const decompress = require("decompress");
 const download = async (packageName, targetVersion, options) => {
@@ -21,9 +21,10 @@ const download = async (packageName, targetVersion, options) => {
     });
 
     const fileDir = path.resolve(tmpdir, lodash.last(url.split('/')));
+    console.log(`[${name}/${version}]开始下载包:${url}`);
+    const response = await fetch(url);
+    const stream = response.body.pipe(fs.createWriteStream(fileDir));
     await new Promise((resolve, reject) => {
-        console.log(`[${name}/${version}]开始下载包:${url}`);
-        const stream = request(url).pipe(fs.createWriteStream(fileDir));
         stream.on('close', () => {
             resolve();
         });
