@@ -1,6 +1,6 @@
 const loadNpmInfo = require('@kne/load-npm-info');
 const tmp = require('tmp');
-const path = require('path');
+const path = require('node:path');
 const lodash = require('lodash');
 const fetch = require('node-fetch');
 const fs = require('fs-extra');
@@ -32,7 +32,7 @@ const downloadTarball = async (url, fileDir, {retries = 3, delay = 1000} = {}) =
     let lastError;
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {compress: false});
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status} ${response.statusText}`);
             }
