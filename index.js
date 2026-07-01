@@ -1,10 +1,63 @@
 const loadNpmInfo = require('@kne/load-npm-info');
-const tmp = require("tmp");
-const path = require("path");
+const tmp = require('tmp');
+const path = require('path');
 const lodash = require('lodash');
 const fetch = require('node-fetch');
 const fs = require('fs-extra');
-const decompress = require("decompress");
+const decompress = require('decompress');
+
+const RETRYABLE_CODES = new Set([
+    'ERR_STREAM_PREMATURE_CLOSE',
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'ECONNREFUSED',
+    'EPIPE',
+    'ENOTFOUND'
+]);
+
+const isRetryableError = (err) => {
+    if (!err) {
+        return false;
+    }
+    if (RETRYABLE_CODES.has(err.code)) {
+        return true;
+    }
+    if (err.type === 'system') {
+        return true;
+    }
+    return /premature close|socket hang up|network/i.test(err.message || '');
+};
+
+const downloadTarball = async (url, fileDir, {retries = 3, delay = 1000} = {}) => {
+    let lastError;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} ${response.statusText}`);
+            }
+            await fs.remove(fileDir);
+            const stream = response.body.pipe(fs.createWriteStream(fileDir));
+            await new Promise((resolve, reject) => {
+                stream.on('close', resolve);
+                stream.on('error', reject);
+                response.body.on('error', reject);
+            });
+            return;
+        } catch (err) {
+            lastError = err;
+            await fs.remove(fileDir).catch(() => {});
+            if (attempt < retries && isRetryableError(err)) {
+                console.warn(`下载 ${url} 失败 (第 ${attempt}/${retries} 次): ${err.message}，${delay * attempt}ms 后重试...`);
+                await new Promise((resolve) => setTimeout(resolve, delay * attempt));
+                continue;
+            }
+            break;
+        }
+    }
+    throw new Error(`下载 ${url} 失败，已重试 ${retries} 次: ${lastError.message}`);
+};
+
 const download = async (packageName, targetVersion, options) => {
     options = Object.assign({}, options);
     const {name, version: latestVersion, versions} = await loadNpmInfo(packageName);
@@ -22,16 +75,7 @@ const download = async (packageName, targetVersion, options) => {
 
     const fileDir = path.resolve(tmpdir, lodash.last(url.split('/')));
     console.log(`[${name}/${version}]开始下载包:${url}`);
-    const response = await fetch(url);
-    const stream = response.body.pipe(fs.createWriteStream(fileDir));
-    await new Promise((resolve, reject) => {
-        stream.on('close', () => {
-            resolve();
-        });
-        stream.on('error', (err) => {
-            reject(err);
-        });
-    });
+    await downloadTarball(url, fileDir);
     console.log(`[${name}/${version}]开始解压压缩包`);
     await decompress(fileDir, tmpdir);
     console.log(`[${name}/${version}]解压压缩包完成`);
